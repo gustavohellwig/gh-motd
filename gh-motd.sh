@@ -4,9 +4,10 @@
 # MOTD Configurations
 #--------------------------------------------------
 echo -e "\nMOTD Configurations"
-sudo add-apt-repository ppa:dawidd0811/neofetch
+sudo add-apt-repository ppa:dawidd0811/neofetch -y
+yes '' | sudo add-apt-repository ppa:nginx/stable
 sudo apt-get update && sudo apt-get install neofetch ansiweather lolcat sysvbanner -y &> /dev/null
-cat <<EOF > /etc/update-motd.d/00-welcome
+sudo cat <<EOF > /etc/update-motd.d/00-welcome
 #!/bin/sh
 echo
 sysvbanner $(hostname -s) | /usr/games/lolcat -f
