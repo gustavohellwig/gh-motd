@@ -8,7 +8,7 @@ A simple script to setup an awesome MOTD. It includes:
 ## Demo
 
 Currently the command prompt looks like this:
-![ZSH-Prompt](https://github.com/gustavohellwig/gh-motd/blob/main/gh-motd-example.png?raw=true)
+![ZSH-Prompt](https://github.com/gustavohellwig/gh-motd/blob/11b7086d30abded4e55d9f413d6f772e017bcc4a/gh-motd-example.png)
 ## Installation
 
 ``` bash
