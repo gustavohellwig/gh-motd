@@ -4,10 +4,13 @@
 # MOTD Configurations
 #--------------------------------------------------
 echo -e "\nMOTD Configurations"
-sudo add-apt-repository ppa:dawidd0811/neofetch -y
+echo -e "\n---Adding neofetch Repository"
+sudo add-apt-repository ppa:dawidd0811/neofetch -y &> /dev/null
 yes '' | sudo add-apt-repository ppa:nginx/stable
+echo -e "\n---Installing neofetch, ansiweather, lolcat, and sysvbanner"
 sudo apt-get update && sudo apt-get install neofetch ansiweather lolcat sysvbanner -y &> /dev/null
-sudo cat <<EOF > /etc/update-motd.d/00-welcome
+echo -e "\n---Creating MOTD Config"
+sudo bash -c 'cat <<EOF > /etc/update-motd.d/00-welcome
 #!/bin/sh
 echo
 sysvbanner $(hostname -s) | /usr/games/lolcat -f
@@ -22,5 +25,6 @@ find $stamp -newermt 'now-7 days' 2> /dev/null | grep -q -m 1 '.' || /usr/share/
 ansiweather -l Kijabe,KE -p false
 ansiweather -l Kijabe,KE -p false -f 3
 echo
-EOF
+EOF'
 sudo chmod -x /etc/update-motd.d/* && sudo chmod +x /etc/update-motd.d/00-welcome &> /dev/null
+echo -e "\n---MOTD Finished\n"
