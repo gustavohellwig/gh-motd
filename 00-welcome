@@ -1,0 +1,12 @@
+#!/bin/sh
+echo
+sysvbanner $(hostname -s) | /usr/games/lolcat -f
+echo
+/usr/bin/landscape-sysinfo
+echo
+stamp="/var/lib/update-notifier/updates-available"
+[ ! -r "$stamp" ] || cat "$stamp"
+find $stamp -newermt 'now-7 days' 2> /dev/null | grep -q -m 1 '.' || /usr/share/update-notifier/notify-updates-outdated
+ansiweather -l Kijabe,KE -p false
+ansiweather -l Kijabe,KE -p false -f 3
+echo
