@@ -1,6 +1,7 @@
 #!/bin/sh
 echo
-sysvbanner $(hostname -s) | /usr/games/lolcat -f
+#sysvbanner $(hostname -s) | /usr/games/lolcat -f
+figlet -w 4096 -f banner $(hostname -s) | /usr/games/lolcat -f
 echo
 /usr/bin/landscape-sysinfo
 echo
