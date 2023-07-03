@@ -11,3 +11,5 @@ find $stamp -newermt 'now-7 days' 2> /dev/null | grep -q -m 1 '.' || /usr/share/
 ansiweather -l Dallas,US -p false
 ansiweather -l Dallas,US -p false -f 3
 echo
+hostnamectl | grep -E "Kernel|Operating System"
+echo
