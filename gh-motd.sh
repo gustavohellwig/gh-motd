@@ -4,7 +4,7 @@
 # MOTD Configurations
 #--------------------------------------------------
 echo -e "\nMOTD Configurations"
-echo -e "\n→ Installing ansiweather, lolcat, and sysvbanner\n\n↳ Type your SUDO password:"
+echo -e "\n→ Installing ansiweather, lolcat, and sysvbanner"
 sudo apt-get update &>/dev/null
 sudo apt-get install ansiweather lolcat sysvbanner figlet -y &>/dev/null
 echo -e "\n→ Downloading MOTD config template"
