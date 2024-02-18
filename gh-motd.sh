@@ -13,6 +13,6 @@ sudo wget https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-welco
 sudo mv 00-welcome /etc/update-motd.d/ &>/dev/null
 sudo chmod -x /etc/update-motd.d/* &>/dev/null
 sudo chmod +x /etc/update-motd.d/00-welcome &>/dev/null
-echo -e "\n→ MOTD Finished---\n"
-echo -e "Update this file \"/etc/update-motd.d/00-welcome\" with the information of the location you want to show the weather forecast."
+echo -e "\n→ MOTD Customization finished ←\n"
+echo -e "PS: To update the weather location, change this file: \"/etc/update-motd.d/00-welcome\""
 echo -e "\n"
