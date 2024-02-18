@@ -12,5 +12,5 @@ Currently the command prompt looks like this:
 ## Installation
 
 ``` bash
-curl -fsSL https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/gh-motd.sh | bash
+sudo curl -fsSL https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/gh-motd.sh | bash
 ```
