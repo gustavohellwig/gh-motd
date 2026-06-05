@@ -24,5 +24,5 @@ sudo curl -fsSL -o /etc/update-motd.d/00-welcome https://raw.githubusercontent.c
 sudo chmod +x /etc/update-motd.d/00-welcome &>/dev/null
 #sudo find /etc/update-motd.d -maxdepth 1 -type f ! -name "00-welcome" -exec chmod -x {} \;
 echo -e "\n→ MOTD Customization finished ←\n"
-echo -e "PS: To update the weather location, change this file: \"/etc/update-motd.d/00-welcome\""
+#echo -e "PS: To update the weather location, change this file: \"/etc/update-motd.d/00-welcome\""
 echo -e "\n"
