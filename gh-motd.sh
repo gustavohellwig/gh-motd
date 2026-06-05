@@ -7,10 +7,6 @@ trap 'echo "ERROR: Failed on line $LINENO"; exit 1' ERR
 # MOTD Configurations
 #--------------------------------------------------
 echo -e "\nMOTD Configurations"
-if ! command -v update-motd >/dev/null 2>&1; then
-    echo "This system does not support update-motd."
-    exit 1
-fi
 echo -e "\n→ Installing dependencies"
 sudo apt-get update >/dev/null 2>&1
 sudo apt-get install -y \
