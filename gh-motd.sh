@@ -20,7 +20,7 @@ echo -e "\n→ Downloading MOTD config template"
 #sudo wget https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-welcome &>/dev/null
 sudo curl -fsSL -o /etc/update-motd.d/00-welcome https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-welcome
 #sudo mv 00-welcome /etc/update-motd.d/ &>/dev/null
-#sudo chmod -x /etc/update-motd.d/* &>/dev/null
+sudo chmod -x /etc/update-motd.d/* &>/dev/null
 sudo chmod +x /etc/update-motd.d/00-welcome &>/dev/null
 #sudo find /etc/update-motd.d -maxdepth 1 -type f ! -name "00-welcome" -exec chmod -x {} \;
 echo -e "\n→ MOTD Customization finished ←\n"
