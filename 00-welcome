@@ -1,14 +1,131 @@
-#!/bin/sh
-echo
-#sysvbanner $(hostname -s) | /usr/games/lolcat -f
-figlet -w 4096 -f banner $(hostname -s) | /usr/games/lolcat -f
-echo
-/usr/bin/landscape-sysinfo
-echo
-hostnamectl | grep -E "Kernel|Operating System"
-stamp="/var/lib/update-notifier/updates-available"
-[ ! -r "$stamp" ] || cat "$stamp"
-find $stamp -newermt 'now-7 days' 2> /dev/null | grep -q -m 1 '.' || /usr/share/update-notifier/notify-updates-outdated
-#ansiweather -l Dallas,US -p false
-#ansiweather -l Dallas,US -p false -f 3
+#!/bin/bash
+
+export LC_ALL=C
+
+# Host information
+HOST=$(hostname -s)
+FQDN=$(hostname -f 2>/dev/null || hostname)
+OS=$(. /etc/os-release && echo "$PRETTY_NAME")
+KERNEL=$(uname -r)
+UPTIME=$(uptime -p 2>/dev/null || echo "unknown")
+LOAD=$(awk '{print $1 " " $2 " " $3}' /proc/loadavg)
+
+MEMORY=$(free -b | awk '/^Mem:/ {
+    if ($2 > 0) printf "%.0f%%", ($2-$7)*100/$2
+}')
+DISK=$(df -P / | awk 'NR==2 {print $5 " used"}')
+FAILED=$(systemctl --failed --no-legend 2>/dev/null | awk 'NF {n++} END {print n+0}')
+
+# Determine terminal width
+COLS=$(tput cols 2>/dev/null)
+[[ "$COLS" =~ ^[0-9]+$ ]] || COLS=120
+(( COLS < 80 )) && COLS=80
+HALF=$((COLS / 2))
+
+# Temporary files
+TMPDIR_MOTD=$(mktemp -d /tmp/motd.XXXXXX) || exit 1
+trap 'rm -rf "$TMPDIR_MOTD"' EXIT
+
+# Previous login information
+IP=$(last -i -n 20 | awk '$2 ~ /^(pts|tty)/ && $3 ~ /^[0-9a-fA-F:.]+$/ {print $3; exit}')
+
+if [[ -z "$IP" ]]; then
+    LAST_LOGIN_TEXT="Unknown"
+elif [[ "$IP" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.) ]] ||
+     [[ "$IP" == "::1" || "$IP" =~ ^(fc|fd|fe80:) ]]; then
+    LAST_LOGIN_TEXT="$IP | LOCAL"
+else
+    GEO=$(curl -fsS --max-time 5 \
+        "http://ip-api.com/json/${IP}?fields=status,city,country" \
+        2>/dev/null)
+
+    STATUS=$(echo "$GEO" | jq -r '.status // empty')
+    CITY=$(echo "$GEO" | jq -r '.city // "Unknown"')
+    COUNTRY=$(echo "$GEO" | jq -r '.country // "Unknown"')
+
+    if [[ "$STATUS" == "success" ]]; then
+        LAST_LOGIN_TEXT="$IP | $CITY - $COUNTRY"
+    else
+        LAST_LOGIN_TEXT="$IP | Location unavailable"
+    fi
+fi
+
+# Generate the original banner without color
+figlet -w 4096 -f banner "$HOST" > "$TMPDIR_MOTD/banner" 2>/dev/null
+
+# Preserve the original lolcat-colored banner
+if command -v figlet >/dev/null 2>&1 &&
+  [ -x /usr/games/lolcat ];
+then
+    cat "$TMPDIR_MOTD/banner" | /usr/games/lolcat -f > "$TMPDIR_MOTD/banner_color" 2>/dev/null
+else
+    cp "$TMPDIR_MOTD/banner" "$TMPDIR_MOTD/banner_color"
+fi
+
+# Load plain and colored banner lines into arrays
+mapfile -t BANNER_PLAIN < "$TMPDIR_MOTD/banner"
+mapfile -t BANNER_COLOR < "$TMPDIR_MOTD/banner_color"
+
+# Build the left column, keeping color only on the banner
+LEFT_PLAIN=("")
+LEFT_COLOR=("")
+
+for i in "${!BANNER_PLAIN[@]}"; do
+    LEFT_PLAIN+=("${BANNER_PLAIN[$i]}")
+    if [ "$i" -lt "${#BANNER_COLOR[@]}" ]; then
+        LEFT_COLOR+=("${BANNER_COLOR[$i]}")
+    else
+        LEFT_COLOR+=("${BANNER_PLAIN[$i]}")
+    fi
+done
+
+LEFT_PLAIN+=("")
+LEFT_COLOR+=("")
+LEFT_PLAIN+=("  Distributions: $OS")
+LEFT_COLOR+=("  Distributions: $OS")
+LEFT_PLAIN+=("  Kernel:        $KERNEL")
+LEFT_COLOR+=("  Kernel:        $KERNEL")
+LEFT_PLAIN+=("  Uptime:        $UPTIME")
+LEFT_COLOR+=("  Uptime:        $UPTIME")
+LEFT_PLAIN+=("  Last Login:    $LAST_LOGIN_TEXT")
+LEFT_COLOR+=("  Last Login:    $LAST_LOGIN_TEXT")
+LEFT_PLAIN+=("")
+LEFT_COLOR+=("")
+
+# Build the right column
+RIGHT=(
+    " "
+    "SYSTEM HEALTH"
+    "------------------------------"
+    "Hostname:  $FQDN"
+    "Load:      $LOAD"
+    "Memory:    ${MEMORY:-N/A} used"
+    "Root disk: $DISK"
+)
+
+if [ "$FAILED" -eq 0 ]; then
+    RIGHT+=("Services:  OK")
+else
+    RIGHT+=("WARNING:   $FAILED failed unit(s)")
+fi
+
+RIGHT+=("")
+
+# Print columns side by side.
+# Calculate padding using plain text, not ANSI color escape codes.
+MAX=${#LEFT_COLOR[@]}
+(( ${#RIGHT[@]} > MAX )) && MAX=${#RIGHT[@]}
+
+for ((i=0; i<MAX; i++)); do
+    plain="${LEFT_PLAIN[$i]:-}"
+    colored="${LEFT_COLOR[$i]:-}"
+    right="${RIGHT[$i]:-}"
+
+    visible=${#plain}
+    padding=$((HALF - visible))
+    (( padding < 1 )) && padding=1
+
+    printf '%s%*s%s\n' "$colored" "$padding" "" "$right"
+done
+
 echo
