@@ -67,9 +67,6 @@ mapfile -t BANNER_PLAIN < "$TMPDIR_MOTD/banner"
 mapfile -t BANNER_COLOR < "$TMPDIR_MOTD/banner_color"
 
 # Build the left column, keeping color only on the banner
-LEFT_PLAIN=("")
-LEFT_COLOR=("")
-
 for i in "${!BANNER_PLAIN[@]}"; do
     LEFT_PLAIN+=("${BANNER_PLAIN[$i]}")
     if [ "$i" -lt "${#BANNER_COLOR[@]}" ]; then
