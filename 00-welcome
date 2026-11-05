@@ -44,7 +44,7 @@ else
     COUNTRY=$(echo "$GEO" | jq -r '.country // "Unknown"')
 
     if [[ "$STATUS" == "success" ]]; then
-        LAST_LOGIN_TEXT="$IP | $CITY - $COUNTRY"
+        LAST_LOGIN_TEXT="$IP | $CITY | $COUNTRY"
     else
         LAST_LOGIN_TEXT="$IP | Location unavailable"
     fi
