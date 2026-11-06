@@ -28,11 +28,7 @@ sudo chmod -x /etc/update-motd.d/* &>/dev/null
 # fi
 # sudo chmod +x /etc/update-motd.d/00-welcome &>/dev/null
 #sudo find /etc/update-motd.d -maxdepth 1 -type f ! -name "00-welcome" -exec chmod -x {} \;
-sudo tee /etc/ssh/sshrc > /dev/null << 'EOF'
-if [ -t 1 ] && [ -n "${SSH_CONNECTION:-}" ]; then
-    /bin/bash /etc/update-motd.d/00-welcome
-fi
-EOF
+echo "/bin/bash /etc/update-motd.d/00-welcome" > /etc/ssh/sshrc
 echo -e "\n→ MOTD Customization finished ←\n"
 #echo -e "PS: To update the weather location, change this file: \"/etc/update-motd.d/00-welcome\""
 echo -e "\n"
