@@ -28,7 +28,7 @@ sudo chmod -x /etc/update-motd.d/* &>/dev/null
 # fi
 # sudo chmod +x /etc/update-motd.d/00-welcome &>/dev/null
 #sudo find /etc/update-motd.d -maxdepth 1 -type f ! -name "00-welcome" -exec chmod -x {} \;
-sudo tee -a /etc/ssh/sshrc >/dev/null <'EOF'
+sudo tee /etc/ssh/sshrc > /dev/null << 'EOF'
 if [ -t 1 ] && [ -n "${SSH_CONNECTION:-}" ]; then
     /bin/bash /etc/update-motd.d/00-welcome
 fi
