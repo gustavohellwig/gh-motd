@@ -21,13 +21,18 @@ echo -e "\n→ Downloading MOTD config template"
 sudo curl -fsSL -o /etc/update-motd.d/00-welcome https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-welcome
 #sudo mv 00-welcome /etc/update-motd.d/ &>/dev/null
 sudo chmod -x /etc/update-motd.d/* &>/dev/null
-if [ -L /etc/update-motd.d/50-landscape-sysinfo ]; then
-  sudo rm /etc/update-motd.d/50-landscape-sysinfo
-elif [ -e /etc/update-motd.d/50-landscape-sysinfo ]; then
-  sudo chmod 644 /etc/update-motd.d/50-landscape-sysinfo
-fi
-sudo chmod +x /etc/update-motd.d/00-welcome &>/dev/null
+# if [ -L /etc/update-motd.d/50-landscape-sysinfo ]; then
+#   sudo rm /etc/update-motd.d/50-landscape-sysinfo
+# elif [ -e /etc/update-motd.d/50-landscape-sysinfo ]; then
+#   sudo chmod 644 /etc/update-motd.d/50-landscape-sysinfo
+# fi
+# sudo chmod +x /etc/update-motd.d/00-welcome &>/dev/null
 #sudo find /etc/update-motd.d -maxdepth 1 -type f ! -name "00-welcome" -exec chmod -x {} \;
+sudo tee -a /etc/ssh/sshrc >/dev/null <<'EOF'
+if [ -t 1 ] && [ -n "${SSH_CONNECTION:-}" ]; then
+    /bin/bash /etc/update-motd.d/00-welcome
+fi
+EOF
 echo -e "\n→ MOTD Customization finished ←\n"
 #echo -e "PS: To update the weather location, change this file: \"/etc/update-motd.d/00-welcome\""
 echo -e "\n"
