@@ -1,223 +1,327 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# ==========================================================
+# MOTD Dashboard - Four Corners
+# File: /etc/update-motd.d/00-welcome
+# ==========================================================
 
 export LC_ALL=C
 
-# Host information
-HOST=$(hostname -s)
-FQDN=$(hostname -f 2>/dev/null || hostname)
-OS=$(. /etc/os-release && echo "$PRETTY_NAME")
+# ----------------------------------------------------------
+# Basic information
+# ----------------------------------------------------------
+
+HOST=$(hostname -s 2>/dev/null || hostname)
+OS=$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-Linux}")
 KERNEL=$(uname -r)
-UPTIME=$(uptime -p 2>/dev/null || echo "unknown")
-LOAD=$(awk '{print $1 " " $2 " " $3}' /proc/loadavg)
+UPTIME=$(uptime -p 2>/dev/null | sed 's/^up //' || echo "Unknown")
 
-MEMORY=$(free -b | awk '/^Mem:/ {
-    if ($2 > 0) printf "%.0f%%", ($2-$7)*100/$2
-}')
-DISK=$(df -P / | awk 'NR==2 {print $5 " used"}')
-FAILED=$(systemctl --failed --no-legend 2>/dev/null | awk 'NF {n++} END {print n+0}')
+# Detect terminal width reliably
+COLS=160
 
-# Determine terminal width
-COLS=$(tput cols 2>/dev/null)
-[[ "$COLS" =~ ^[0-9]+$ ]] || COLS=120
-(( COLS < 80 )) && COLS=80
-HALF=$((COLS / 2))
-
-# Temporary files
-TMPDIR_MOTD=$(mktemp -d /tmp/motd.XXXXXX) || exit 1
-trap 'rm -rf "$TMPDIR_MOTD"' EXIT
-
-# --------------------------------------------------
-# Current login information (left column)
-# --------------------------------------------------
-
-IP=$(last -i -n 20 2>/dev/null |
-    awk '$2 ~ /^(pts|tty)[0-9]+$/ &&
-         $3 ~ /^[0-9a-fA-F:.]+$/ {print $3; exit}')
-
-if [[ -z "$IP" ]]; then
-    LAST_LOGIN_TEXT="Unknown"
-elif [[ "$IP" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.) ]] ||
-     [[ "$IP" == "::1" || "$IP" =~ ^(fc|fd|fe80:) ]]; then
-    LAST_LOGIN_TEXT="$IP | LOCAL"
-else
-    GEO=$(curl -fsS --max-time 3 \
-        "http://ip-api.com/json/${IP}?fields=status,city,country" \
-        2>/dev/null || true)
-
-    STATUS=$(jq -r '.status // empty' <<< "$GEO" 2>/dev/null)
-    CITY=$(jq -r '.city // "Unknown"' <<< "$GEO" 2>/dev/null)
-    COUNTRY=$(jq -r '.country // "Unknown"' <<< "$GEO" 2>/dev/null)
-
-    if [[ "$STATUS" == "success" ]]; then
-        LAST_LOGIN_TEXT="$IP | $CITY | $COUNTRY"
-    else
-        LAST_LOGIN_TEXT="$IP | Location unavailable"
+if [[ -t 1 ]]; then
+    TERM_COLS=$(stty size </dev/tty 2>/dev/null | awk '{print $2}')
+    if [[ "$TERM_COLS" =~ ^[0-9]+$ ]] && (( TERM_COLS >= 80 )); then
+        COLS=$TERM_COLS
     fi
 fi
 
-# --------------------------------------------------
-# Previous login information (right column)
-# Exclude the current terminal when possible.
-# --------------------------------------------------
+LEFT_WIDTH=$((COLS * 55 / 100))
+(( LEFT_WIDTH < 35 )) && LEFT_WIDTH=35
 
-PREV_LOGIN="Unknown"
+# ----------------------------------------------------------
+# Colors
+# ----------------------------------------------------------
+
+RESET=$'\033[0m'
+BOLD=$'\033[1m'
+CYAN=$'\033[1;36m'
+BLUE=$'\033[1;34m'
+WHITE=$'\033[1;37m'
+GREEN=$'\033[1;32m'
+RED=$'\033[1;31m'
+MAGENTA=$'\033[1;35m'
+
+field() {
+    printf '%s%s%s %s' "$WHITE" "$1" "$RESET" "$2"
+}
+
+heading() {
+    printf '%s%s%s' "$BLUE$BOLD" "$1" "$RESET"
+}
+
+# ----------------------------------------------------------
+# TOP LEFT: Large server banner
+# ----------------------------------------------------------
+
+BANNER_PLAIN=()
+BANNER_COLOR=()
+
+if command -v figlet >/dev/null 2>&1; then
+    mapfile -t BANNER_PLAIN < <(
+        figlet -w "$LEFT_WIDTH" -f banner "$HOST" 2>/dev/null |
+            sed '/^[[:space:]]*$/d'
+    )
+
+    if [[ -x /usr/games/lolcat ]]; then
+      mapfile -t BANNER_COLOR < <(
+          figlet -w "$LEFT_WIDTH" -f banner "$HOST" 2>/dev/null |
+              sed '/^[[:space:]]*$/d' |
+              /usr/games/lolcat -f 2>/dev/null
+      )
+    fi
+fi
+
+# Fallback if FIGlet is unavailable.
+if (( ${#BANNER_PLAIN[@]} == 0 )); then
+    BANNER_PLAIN=("$HOST")
+fi
+
+# Use cyan if lolcat is unavailable or its output differs.
+if (( ${#BANNER_COLOR[@]} != ${#BANNER_PLAIN[@]} )); then
+    BANNER_COLOR=()
+
+    for line in "${BANNER_PLAIN[@]}"; do
+        BANNER_COLOR+=("${CYAN}${line}${RESET}")
+    done
+fi
+
+# ----------------------------------------------------------
+# TOP RIGHT: System health
+# ----------------------------------------------------------
+
+LOAD=$(awk '{print $1 " / " $2 " / " $3}' /proc/loadavg 2>/dev/null)
+[[ -n "$LOAD" ]] || LOAD="Unknown"
+
+MEMORY=$(free -h 2>/dev/null | awk '
+    /^Mem:/ {
+        printf "%s / %s (used / total)", $3, $2
+    }
+')
+[[ -n "$MEMORY" ]] || MEMORY="Unknown"
+
+DISK=$(df -hP / 2>/dev/null | awk '
+    NR == 2 {
+        printf "%s / %s (%s used)", $3, $2, $5
+    }
+')
+[[ -n "$DISK" ]] || DISK="Unknown"
+
+FAILED=$(systemctl --failed --no-legend --plain 2>/dev/null |
+    awk 'NF {n++} END {print n+0}')
+
+if (( FAILED == 0 )); then
+    SERVICES="${GREEN}0${RESET}"
+else
+    SERVICES="${RED}${FAILED}${RESET}"
+fi
+
+TOP_RIGHT=(
+    "$(heading "SYSTEM HEALTH")"
+    "$(field "Hostname:" "${CYAN}${HOST}${RESET}")"
+    "$(field "Load:" "$LOAD")"
+    "$(field "Memory:" "$MEMORY")"
+    "$(field "Root Disk:" "$DISK")"
+    "$(field "Failed Services:" "$SERVICES")"
+)
+
+# ----------------------------------------------------------
+# LOGIN INFORMATION
+# ----------------------------------------------------------
+
+LOGIN_USER=${SUDO_USER:-${PAM_USER:-${USER:-$(id -un)}}}
+
+IP="Unknown"
 PREV_IP="Unknown"
-PREV_LOCATION="Unknown"
+PREV_LOGIN="Unknown"
 
-LOGIN_USER=${USER:-$(id -un)}
-CURRENT_TTY=$(tty 2>/dev/null | sed 's#^/dev/##')
+# 1. SSH_CONNECTION: client IP is the first field.
+if [[ -n "${SSH_CONNECTION:-}" ]]; then
+    read -r IP _ <<< "$SSH_CONNECTION"
 
-PREV_RECORD=$(last -i -n 50 "$LOGIN_USER" 2>/dev/null |
-    awk -v current_tty="$CURRENT_TTY" '
-        $2 ~ /^(pts|tty)[0-9]+$/ &&
-        $3 ~ /^[0-9a-fA-F:.]+$/ &&
-        $2 != current_tty {
-            print $3 "|" $4 " " $5 " " $6 " " $7 " " $8
+# 2. SSH_CLIENT: client IP is the first field.
+elif [[ -n "${SSH_CLIENT:-}" ]]; then
+    read -r IP _ <<< "$SSH_CLIENT"
+
+# 3. PAM_RHOST: remote host reported by PAM.
+elif [[ -n "${PAM_RHOST:-}" ]]; then
+    IP="$PAM_RHOST"
+fi
+
+# 4. Check the current terminal's login record.
+if [[ -z "$IP" || "$IP" == "Unknown" || "$IP" == "localhost" ]]; then
+    IP=$(who -m 2>/dev/null | awk '
+        NF {
+            addr = $NF
+            gsub(/[()]/, "", addr)
+
+            if (addr ~ /^[0-9a-fA-F:.]+$/) {
+                print addr
+                exit
+            }
+        }
+    ')
+fi
+
+# 5. Fall back to active login records.
+if [[ -z "$IP" || "$IP" == "Unknown" ]]; then
+    IP=$(last -i -F "$LOGIN_USER" 2>/dev/null | awk '
+        /still logged in/ &&
+        $2 ~ /^pts\/[0-9]+$/ &&
+        $3 ~ /^[0-9a-fA-F:.]+$/ {
+            print $3
             exit
         }
     ')
-
-if [[ -n "$PREV_RECORD" ]]; then
-    PREV_IP=${PREV_RECORD%%|*}
-    PREV_DATE=${PREV_RECORD#*|}
-
-    PREV_LOGIN=$(date -d "$PREV_DATE" '+%b %d, %Y %I:%M %p' 2>/dev/null ||
-        echo "Unknown")
-
-    # Optional internal IP-to-location mapping.
-    # Private IPs cannot be geolocated using a public IP service.
-    case "$PREV_IP" in
-        10.0.1.2)
-            PREV_LOCATION="Dallas, United States"
-            ;;
-        10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|127.*|169.254.*|::1|fc*|fd*|fe80:*)
-            PREV_LOCATION="LOCAL"
-            ;;
-        *)
-            GEO=$(curl -fsS --max-time 3 \
-                "http://ip-api.com/json/${PREV_IP}?fields=status,city,country" \
-                2>/dev/null || true)
-
-            if command -v jq >/dev/null 2>&1; then
-                STATUS=$(jq -r '.status // empty' <<< "$GEO" 2>/dev/null)
-                CITY=$(jq -r '.city // empty' <<< "$GEO" 2>/dev/null)
-                COUNTRY=$(jq -r '.country // empty' <<< "$GEO" 2>/dev/null)
-
-                if [[ "$STATUS" == "success" ]]; then
-                    if [[ -n "$CITY" ]]; then
-                        PREV_LOCATION="$CITY, $COUNTRY"
-                    else
-                        PREV_LOCATION="$COUNTRY"
-                    fi
-                else
-                    PREV_LOCATION="Location unavailable"
-                fi
-            else
-                PREV_LOCATION="Unknown"
-            fi
-            ;;
-    esac
 fi
 
-# --------------------------------------------------
-# Generate the banner
-# --------------------------------------------------
+[[ -n "$IP" ]] || IP="Unknown"
 
-figlet -w 4096 -f banner "$HOST" \
-    > "$TMPDIR_MOTD/banner" 2>/dev/null
+# Previous completed login.
+LAST_RECORD=$(last -i -F "$LOGIN_USER" 2>/dev/null | awk '
+    $2 ~ /^(pts\/[0-9]+|tty[0-9]+)$/ &&
+    $3 ~ /^[0-9a-fA-F:.]+$/ &&
+    $0 !~ /still logged in/ &&
+    $0 !~ /wtmp begins/ {
+        print $3 "|" $4 " " $5 " " $6 " " $7 " " $8
+        exit
+    }
+')
 
-if command -v figlet >/dev/null 2>&1 &&
-   [ -x /usr/games/lolcat ]; then
-    /usr/games/lolcat -f < "$TMPDIR_MOTD/banner" \
-        > "$TMPDIR_MOTD/banner_color" 2>/dev/null
-else
-    cp "$TMPDIR_MOTD/banner" "$TMPDIR_MOTD/banner_color"
+if [[ -n "$LAST_RECORD" ]]; then
+    PREV_IP="${LAST_RECORD%%|*}"
+    PREV_DATE="${LAST_RECORD#*|}"
+
+    PREV_LOGIN=$(date -d "$PREV_DATE" \
+        '+%b %d, %Y %I:%M %p' 2>/dev/null || echo "Unknown")
 fi
 
-# Load plain and colored banner lines
-mapfile -t BANNER_PLAIN < "$TMPDIR_MOTD/banner"
-mapfile -t BANNER_COLOR < "$TMPDIR_MOTD/banner_color"
+# ----------------------------------------------------------
+# IP GEOLOCATION
+# ----------------------------------------------------------
 
-LEFT_PLAIN=()
-LEFT_COLOR=()
+get_location() {
+    local addr="$1"
+    local result success city country
 
-for i in "${!BANNER_PLAIN[@]}"; do
-    LEFT_PLAIN+=("${BANNER_PLAIN[$i]}")
-
-    if [[ "$i" -lt "${#BANNER_COLOR[@]}" ]]; then
-        LEFT_COLOR+=("${BANNER_COLOR[$i]}")
-    else
-        LEFT_COLOR+=("${BANNER_PLAIN[$i]}")
+    if [[ -z "$addr" || "$addr" == "Unknown" ]]; then
+        echo "Unavailable"
+        return
     fi
-done
 
-# --------------------------------------------------
-# Build the left column
-# --------------------------------------------------
+    # Private, loopback, link-local and CGNAT addresses.
+    if [[ "$addr" =~ ^10\. ]] ||
+       [[ "$addr" =~ ^192\.168\. ]] ||
+       [[ "$addr" =~ ^172\.(1[6-9]|2[0-9]|3[01])\. ]] ||
+       [[ "$addr" =~ ^127\. ]] ||
+       [[ "$addr" =~ ^169\.254\. ]] ||
+       [[ "$addr" =~ ^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\. ]] ||
+       [[ "$addr" == "::1" ]] ||
+       [[ "$addr" =~ ^(fc|fd|fe80:) ]]; then
+        echo "Private/VPN IP"
+        return
+    fi
 
-LEFT_PLAIN+=("")
-LEFT_COLOR+=("")
+    if ! command -v curl >/dev/null 2>&1 ||
+       ! command -v jq >/dev/null 2>&1; then
+        echo "Install curl and jq"
+        return
+    fi
 
-LEFT_PLAIN+=("  Distributions: $OS")
-LEFT_COLOR+=("  Distributions: $OS")
+    # HTTPS geolocation lookup requires outbound internet access.
+    result=$(curl -fsS --max-time 3 \
+        "https://ipwho.is/${addr}" 2>/dev/null) || {
+        echo "Lookup unavailable"
+        return
+    }
 
-LEFT_PLAIN+=("  Kernel:        $KERNEL")
-LEFT_COLOR+=("  Kernel:        $KERNEL")
+    success=$(jq -r '.success // false' <<< "$result" 2>/dev/null)
+    city=$(jq -r '.city // empty' <<< "$result" 2>/dev/null)
+    country=$(jq -r '.country // empty' <<< "$result" 2>/dev/null)
 
-LEFT_PLAIN+=("  Uptime:        $UPTIME")
-LEFT_COLOR+=("  Uptime:        $UPTIME")
+    if [[ "$success" == "true" ]]; then
+        if [[ -n "$city" && -n "$country" ]]; then
+            printf '%s, %s\n' "$city" "$country"
+        elif [[ -n "$country" ]]; then
+            printf '%s\n' "$country"
+        else
+            echo "Location unavailable"
+        fi
+    else
+        echo "Location unavailable"
+    fi
+}
 
-LEFT_PLAIN+=("  Last Login:    $LAST_LOGIN_TEXT")
-LEFT_COLOR+=("  Last Login:    $LAST_LOGIN_TEXT")
+LOCATION=$(get_location "$IP")
 
-LEFT_PLAIN+=("")
-LEFT_COLOR+=("")
-
-# --------------------------------------------------
-# Build the right column
-# --------------------------------------------------
-
-RIGHT=(
-    " "
-    "SYSTEM HEALTH"
-    "------------------------------"
-    "Hostname:      $FQDN"
-    "Load:          $LOAD"
-    "Memory:        ${MEMORY:-N/A} used"
-    "Root disk:     $DISK"
+BOTTOM_LEFT=(
+    "$(heading "SERVER INFORMATION")"
+    "$(field "Distribution:" "$OS")"
+    "$(field "Kernel:" "$KERNEL")"
+    "$(field "Uptime:" "$UPTIME")"
 )
 
-if [[ "$FAILED" -eq 0 ]]; then
-    RIGHT+=("Services:      OK")
-else
-    RIGHT+=("WARNING:       $FAILED failed unit(s)")
-fi
+BOTTOM_RIGHT=(
+    "$(heading "LOGIN INFORMATION")"
+    "$(field "Previous Login:" "$PREV_LOGIN")"
+    "$(field "Source IP:" "${CYAN}${IP}${RESET}")"
+    "$(field "Location:" "$LOCATION")"
+)
 
-RIGHT+=("")
-RIGHT+=("PREVIOUS LOGIN")
-RIGHT+=("Previous Login: $PREV_LOGIN")
-RIGHT+=("Source IP:      $PREV_IP")
-RIGHT+=("Location:       $PREV_LOCATION")
-RIGHT+=("")
+# ----------------------------------------------------------
+# Render one row of two columns.
+# ANSI escape codes are excluded from width calculations.
+# ----------------------------------------------------------
 
-# --------------------------------------------------
-# Print the columns side by side
-# Calculate padding using plain text, not ANSI codes.
-# --------------------------------------------------
+strip_ansi() {
+    sed $'s/\033\\[[0-9;]*m//g'
+}
 
-MAX=${#LEFT_COLOR[@]}
-(( ${#RIGHT[@]} > MAX )) && MAX=${#RIGHT[@]}
+print_pair() {
+    local left_plain="$1"
+    local left_render="$2"
+    local right_render="$3"
+    local padding
 
-for ((i=0; i<MAX; i++)); do
-    plain="${LEFT_PLAIN[$i]:-}"
-    colored="${LEFT_COLOR[$i]:-}"
-    right="${RIGHT[$i]:-}"
+    padding=$((LEFT_WIDTH - ${#left_plain}))
+    (( padding < 2 )) && padding=2
 
-    visible=${#plain}
-    padding=$((HALF - visible))
-    (( padding < 1 )) && padding=1
+    printf '%s%*s%s%s\n' \
+        "$left_render" "$padding" "" "$right_render" "$RESET"
+}
 
-    printf '%s%*s%s\n' "$colored" "$padding" "" "$right"
+# ----------------------------------------------------------
+# Draw the four-corner dashboard
+# ----------------------------------------------------------
+
+printf '\n'
+
+# TOP: server banner + system health.
+TOP_LINES=${#BANNER_PLAIN[@]}
+(( ${#TOP_RIGHT[@]} > TOP_LINES )) && TOP_LINES=${#TOP_RIGHT[@]}
+
+for ((i = 0; i < TOP_LINES; i++)); do
+    left_plain="${BANNER_PLAIN[$i]:-}"
+    left_render="${BANNER_COLOR[$i]:-}"
+    right_render="${TOP_RIGHT[$i]:-}"
+
+    print_pair "$left_plain" "$left_render" "$right_render"
 done
 
-echo
+printf '\n'
+
+# BOTTOM: server information + login information.
+BOTTOM_LINES=${#BOTTOM_LEFT[@]}
+(( ${#BOTTOM_RIGHT[@]} > BOTTOM_LINES )) &&
+    BOTTOM_LINES=${#BOTTOM_RIGHT[@]}
+
+for ((i = 0; i < BOTTOM_LINES; i++)); do
+    left_render="${BOTTOM_LEFT[$i]:-}"
+    right_render="${BOTTOM_RIGHT[$i]:-}"
+
+    left_plain=$(printf '%s' "$left_render" | strip_ansi)
+
+    print_pair "$left_plain" "$left_render" "$right_render"
+done
+
+printf '\n'
