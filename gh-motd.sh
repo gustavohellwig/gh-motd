@@ -149,4 +149,4 @@ echo "→ Installation completed successfully."
 echo
 echo "Testing your new dashboard:"
 echo
-sudo /etc/update-motd.d/00-0welcome
+bash $MOTD_FILE
