@@ -147,8 +147,6 @@ $SUDO ls -l "$MOTD_FILE"
 echo
 echo "→ Installation completed successfully."
 echo
-echo "Test your dashboard with:"
-echo "  sudo $MOTD_FILE"
+echo "Testing your new dashboard:"
 echo
-echo "Open a NEW SSH session to verify the login display."
-echo
+sudo /etc/update-motd.d/00-0welcome
