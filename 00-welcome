@@ -6,9 +6,10 @@
 # ==========================================================
 
 export LC_ALL=C
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # ----------------------------------------------------------
-# Basic information
+# BASIC INFORMATION
 # ----------------------------------------------------------
 
 HOST=$(hostname -s 2>/dev/null || hostname)
@@ -16,7 +17,22 @@ OS=$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-Linux}")
 KERNEL=$(uname -r)
 UPTIME=$(uptime -p 2>/dev/null | sed 's/^up //' || echo "Unknown")
 
-# Detect terminal width reliably
+# CPU model: usually the virtual CPU model on a VM.
+CPU_MODEL=$(awk -F ': ' '
+    /^model name[[:space:]]*:/ { print $2; exit }
+    /^Hardware[[:space:]]*:/   { hardware=$2 }
+    END { if (NR && !found && hardware != "") print hardware }
+' /proc/cpuinfo 2>/dev/null | head -n 1)
+
+# More reliable fallback for systems without "model name".
+if [[ -z "$CPU_MODEL" ]]; then
+    CPU_MODEL=$(lscpu 2>/dev/null |
+        awk -F ': *' '/^Model name:/ {print $2; exit}')
+fi
+
+[[ -n "$CPU_MODEL" ]] || CPU_MODEL="Unknown"
+
+# Detect terminal width.
 COLS=160
 
 if [[ -t 1 ]]; then
@@ -33,18 +49,15 @@ LEFT_WIDTH=$((COLS * 55 / 100))
 # COLORS AND TEXT STYLES
 # ----------------------------------------------------------
 
-# Text styles
 RESET=$'\033[0m'
 BOLD=$'\033[1m'
 DIM=$'\033[2m'
 ITALIC=$'\033[3m'
 UNDERLINE=$'\033[4m'
-BLINK=$'\033[5m'
 REVERSE=$'\033[7m'
-HIDDEN=$'\033[8m'
 STRIKETHROUGH=$'\033[9m'
 
-# Standard foreground colors
+# Standard foreground colors.
 BLACK=$'\033[30m'
 RED=$'\033[31m'
 GREEN=$'\033[32m'
@@ -54,7 +67,7 @@ MAGENTA=$'\033[35m'
 CYAN=$'\033[36m'
 WHITE=$'\033[37m'
 
-# Standard bold foreground colors
+# Bold foreground colors.
 BOLD_BLACK=$'\033[1;30m'
 BOLD_RED=$'\033[1;31m'
 BOLD_GREEN=$'\033[1;32m'
@@ -64,7 +77,7 @@ BOLD_MAGENTA=$'\033[1;35m'
 BOLD_CYAN=$'\033[1;36m'
 BOLD_WHITE=$'\033[1;37m'
 
-# Bright foreground colors
+# Bright foreground colors.
 BRIGHT_BLACK=$'\033[90m'
 BRIGHT_RED=$'\033[91m'
 BRIGHT_GREEN=$'\033[92m'
@@ -74,41 +87,24 @@ BRIGHT_MAGENTA=$'\033[95m'
 BRIGHT_CYAN=$'\033[96m'
 BRIGHT_WHITE=$'\033[97m'
 
-# Standard background colors
-BG_BLACK=$'\033[40m'
-BG_RED=$'\033[41m'
-BG_GREEN=$'\033[42m'
-BG_YELLOW=$'\033[43m'
-BG_BLUE=$'\033[44m'
-BG_MAGENTA=$'\033[45m'
-BG_CYAN=$'\033[46m'
-BG_WHITE=$'\033[47m'
-
-# Bright background colors
-BG_BRIGHT_BLACK=$'\033[100m'
-BG_BRIGHT_RED=$'\033[101m'
-BG_BRIGHT_GREEN=$'\033[102m'
-BG_BRIGHT_YELLOW=$'\033[103m'
-BG_BRIGHT_BLUE=$'\033[104m'
-BG_BRIGHT_MAGENTA=$'\033[105m'
-BG_BRIGHT_CYAN=$'\033[106m'
-BG_BRIGHT_WHITE=$'\033[107m'
-
-
-# field() {
-#     printf '%s%s%s %s' "$BOLD_BLUE" "$1" "$RESET" "$2"
-# }
+# 256-color examples for custom accents.
+PURPLE=$'\033[38;5;141m'
+ORANGE=$'\033[38;5;208m'
+GOLD=$'\033[38;5;220m'
+SKY_BLUE=$'\033[38;5;117m'
+MINT_GREEN=$'\033[38;5;121m'
+PINK=$'\033[38;5;205m'
 
 field() {
     printf '%s%-18s%s %s' "$WHITE" "$1" "$RESET" "$2"
 }
 
 heading() {
-    printf '%s%s%s' "$BG_BLUE" "$1" "$RESET"
+    printf '%s%s%s' "${BLUE}${BOLD}" "$1" "$RESET"
 }
 
 # ----------------------------------------------------------
-# TOP LEFT: Large server banner
+# TOP LEFT: SERVER BANNER
 # ----------------------------------------------------------
 
 BANNER_PLAIN=()
@@ -129,22 +125,19 @@ if command -v figlet >/dev/null 2>&1; then
     fi
 fi
 
-# Fallback if FIGlet is unavailable.
 if (( ${#BANNER_PLAIN[@]} == 0 )); then
     BANNER_PLAIN=("$HOST")
 fi
 
-# Use cyan if lolcat is unavailable or its output differs.
 if (( ${#BANNER_COLOR[@]} != ${#BANNER_PLAIN[@]} )); then
     BANNER_COLOR=()
-
     for line in "${BANNER_PLAIN[@]}"; do
-        BANNER_COLOR+=("${BOLD_CYAN}${line}${RESET}")
+        BANNER_COLOR+=("${CYAN}${line}${RESET}")
     done
 fi
 
 # ----------------------------------------------------------
-# TOP RIGHT: System health
+# TOP RIGHT: SYSTEM HEALTH
 # ----------------------------------------------------------
 
 LOAD=$(awk '{print $1 " / " $2 " / " $3}' /proc/loadavg 2>/dev/null)
@@ -152,13 +145,14 @@ LOAD=$(awk '{print $1 " / " $2 " / " $3}' /proc/loadavg 2>/dev/null)
 
 MEMORY=$(free -h 2>/dev/null | awk '
     /^Mem:/ {
-        gsub(/i$/, "", $3)
-        gsub(/i$/, "", $2)
+        gsub(/i/, "", $3)
+        gsub(/i/, "", $2)
         printf "%s / %s (used / total)", $3, $2
     }
 ')
 [[ -n "$MEMORY" ]] || MEMORY="Unknown"
 
+# Root filesystem space.
 DISK=$(df -hP / 2>/dev/null | awk '
     NR == 2 {
         gsub(/G$/, "Gb", $3)
@@ -168,59 +162,98 @@ DISK=$(df -hP / 2>/dev/null | awk '
 ')
 [[ -n "$DISK" ]] || DISK="Unknown"
 
-CPU_MODEL=$(awk -F ': ' '/^model name[[:space:]]*:/ {
-    print $2
-    exit
-}' /proc/cpuinfo 2>/dev/null)
+# Root filesystem inode usage.
+INODES=$(df -iP / 2>/dev/null | awk '
+    NR == 2 {
+        printf "%s used (%s)", $3, $5
+    }
+')
+[[ -n "$INODES" ]] || INODES="Unknown"
 
-if [[ -z "$CPU_MODEL" ]]; then
-    CPU_MODEL=$(awk -F ': ' '/^Hardware[[:space:]]*:/ {
-        print $2
-        exit
-    }' /proc/cpuinfo 2>/dev/null)
-fi
-
-[[ -n "$CPU_MODEL" ]] || CPU_MODEL="Unknown"
-
+# Failed systemd services.
 FAILED=$(systemctl --failed --no-legend --plain 2>/dev/null |
     awk 'NF {n++} END {print n+0}')
 
 if (( FAILED == 0 )); then
-    SERVICES="${BOLD_GREEN}0${RESET}"
+    SERVICES="${GREEN}0${RESET}"
 else
-    SERVICES="${BOLD_RED}${FAILED}${RESET}"
+    SERVICES="${RED}${FAILED}${RESET}"
+fi
+
+# ----------------------------------------------------------
+# SECURITY STATUS
+# ----------------------------------------------------------
+
+# Count all package updates in the local APT cache.
+# This is not a security-only update count.
+PENDING_UPDATES=$(apt list --upgradable 2>/dev/null |
+    awk 'NR > 1 && !/^Listing/ {n++} END {print n+0}')
+
+# Failed SSH authentication events in the previous hour.
+# Do not report zero if the journal is unavailable.
+SSH_LOGS=$(journalctl \
+    -u ssh.service -u sshd.service \
+    --since "1 hour ago" \
+    --no-pager -o cat 2>/dev/null)
+
+if [[ -n "$SSH_LOGS" ]]; then
+    FAILED_SSH=$(awk '
+        /Failed password|Invalid user|authentication failure/ {
+            n++
+        }
+        END {print n+0}
+    ' <<< "$SSH_LOGS")
+
+    if (( FAILED_SSH > 0 )); then
+        FAILED_SSH_DISPLAY="${BOLD_RED}${FAILED_SSH}${RESET}"
+    else
+        FAILED_SSH_DISPLAY="${BOLD_GREEN}0${RESET}"
+    fi
+else
+    FAILED_SSH_DISPLAY="Unavailable"
+fi
+
+unset SSH_LOGS
+
+# Fail2ban status.
+SHOW_FAIL2BAN=false
+
+if command -v fail2ban-client >/dev/null 2>&1; then
+    SHOW_FAIL2BAN=true
+
+    if systemctl is-active --quiet fail2ban; then
+        FAIL2BAN="${GREEN}Active${RESET}"
+    else
+        FAIL2BAN="${RED}Inactive${RESET}"
+    fi
 fi
 
 TOP_RIGHT=(
-    "$(heading "${ITALIC}SYSTEM HEALTH${RESET}")"
-    "$(field "Uptime:" "$UPTIME")"
+    "$(heading "SERVER INFORMATION")"
+    "$(field "Distribution:" "$OS")"
+    "$(field "Kernel:" "$KERNEL")"
     "$(field "CPU Model:" "$CPU_MODEL")"
-    "$(field "Memory:" "$MEMORY")"
-    "$(field "Load:" "$LOAD")"
-    "$(field "Root Disk:" "$DISK")"
+    "$(field "Uptime:" "$UPTIME")"
+    "$(field "Failed Services:" "$SERVICES")"
 )
 
 # ----------------------------------------------------------
-# LOGIN INFORMATION: Current and previous SSH login
+# LOGIN INFORMATION: CURRENT SESSION
 # ----------------------------------------------------------
 
 IP="Unknown"
+LOGIN_USER="${PAM_USER:-}"
+PREV_USER="Unknown"
 PREV_IP="Unknown"
 PREV_LOGIN="Unknown"
-LOGIN_USER=""
 
-# Determine the login user without assuming the script's
-# effective user is the SSH user.
-if [[ -n "${PAM_USER:-}" ]]; then
-    LOGIN_USER="$PAM_USER"
-fi
-
-# Try the current terminal's utmp record.
+# Identify the current terminal's login user and source IP.
 WHO_LINE=$(who -m 2>/dev/null | head -n 1)
 
 if [[ -n "$WHO_LINE" ]]; then
-    [[ -n "$LOGIN_USER" ]] ||
+    if [[ -z "$LOGIN_USER" ]]; then
         LOGIN_USER=$(awk '{print $1}' <<< "$WHO_LINE")
+    fi
 
     WHO_IP=$(awk '{
         addr = $NF
@@ -233,7 +266,7 @@ if [[ -n "$WHO_LINE" ]]; then
     fi
 fi
 
-# Prefer connection details when they are available.
+# Prefer SSH connection details when the environment provides them.
 if [[ -n "${SSH_CONNECTION:-}" ]]; then
     read -r IP _ <<< "$SSH_CONNECTION"
 elif [[ -n "${SSH_CLIENT:-}" ]]; then
@@ -242,7 +275,8 @@ elif [[ -n "${PAM_RHOST:-}" ]]; then
     IP="$PAM_RHOST"
 fi
 
-# Resolve the original login user before falling back to root.
+# Resolve the original login user before falling back to the
+# effective user, which may be root after sudo -s.
 if [[ -z "$LOGIN_USER" ]]; then
     LOGIN_USER=$(logname 2>/dev/null || true)
 fi
@@ -255,48 +289,41 @@ if [[ -z "$LOGIN_USER" ]]; then
     LOGIN_USER="${USER:-$(id -un)}"
 fi
 
-# If the current IP is still unknown, inspect recent SSH logs.
+# If the current IP is unknown, consult recent SSH logs ONLY for
+# the identified login user. Never attribute another user's IP.
 if [[ -z "$IP" || "$IP" == "Unknown" || "$IP" == "localhost" ]]; then
-    LOG_LINES=$(journalctl \
-        -u ssh.service -u sshd.service \
-        --since "3 minutes ago" \
-        --no-pager -o cat 2>/dev/null)
+    if [[ -n "$LOGIN_USER" ]]; then
+        LOG_LINES=$(journalctl \
+            -u ssh.service -u sshd.service \
+            --since "3 minutes ago" \
+            --no-pager -o cat 2>/dev/null)
 
-    IP=$(awk -v user="$LOGIN_USER" '
-        index($0, "Accepted ") &&
-        index($0, " for " user " from ") {
-            for (i = 1; i < NF; i++) {
-                if ($i == "from") ip = $(i+1)
-            }
-        }
-        END { if (ip != "") print ip }
-    ' <<< "$LOG_LINES")
-
-    # Last-resort fallback if no username-specific entry is found.
-    if [[ -z "$IP" ]]; then
-        IP=$(awk '
-            index($0, "Accepted ") {
+        MATCHED_IP=$(awk -v user="$LOGIN_USER" '
+            index($0, "Accepted ") &&
+            index($0, " for " user " from ") {
                 for (i = 1; i < NF; i++) {
                     if ($i == "from") ip = $(i+1)
                 }
             }
             END { if (ip != "") print ip }
         ' <<< "$LOG_LINES")
+
+        if [[ -n "$MATCHED_IP" ]]; then
+            IP="$MATCHED_IP"
+        fi
     fi
 fi
 
 [[ -n "$IP" ]] || IP="Unknown"
 
 # ----------------------------------------------------------
-# Previous completed SSH login
+# PREVIOUS COMPLETED SSH LOGIN
 # ----------------------------------------------------------
-# Read the most recent completed pts/* login for this user.
-# Skip the current session when it is still logged in.
+# Restrict history to pts/* sessions and skip sessions that are
+# still logged in. The record includes username, IP and date.
 #
-# Expected last -i -F format:
+# Typical last -i -F format:
 # user pts/0 203.0.113.10 Mon Nov 9 14:20:00 2026
-#
-# The date is assembled from fields 4 through 8.
 
 LAST_RECORD=$(last -i -F "$LOGIN_USER" 2>/dev/null | awk '
     $2 ~ /^pts\/[0-9]+$/ &&
@@ -308,46 +335,63 @@ LAST_RECORD=$(last -i -F "$LOGIN_USER" 2>/dev/null | awk '
     }
 ')
 
-PREV_USER="Unknown"
 if [[ -n "$LAST_RECORD" ]]; then
     PREV_USER="${LAST_RECORD%%|*}"
-    REMAINDER="${LAST_RECORD#*|}"
+    LAST_REMAINDER="${LAST_RECORD#*|}"
 
-    PREV_IP="${REMAINDER%%|*}"
-    PREV_DATE="${REMAINDER#*|}"
+    PREV_IP="${LAST_REMAINDER%%|*}"
+    PREV_DATE="${LAST_REMAINDER#*|}"
 
     PREV_LOGIN=$(date -d "$PREV_DATE" \
         '+%b %d, %Y %I:%M %p' 2>/dev/null || echo "Unknown")
-else
-    PREV_USER="Unknown"
 fi
 
 # ----------------------------------------------------------
 # IP GEOLOCATION
 # ----------------------------------------------------------
+# Public IP addresses are sent to ipwho.is.
+# Private/non-global IPs are not sent to the service.
 
 get_location() {
     local addr="$1"
-    local result success city country
+    local result success city country scope
 
     if [[ -z "$addr" || "$addr" == "Unknown" ]]; then
         echo "Unavailable"
         return
     fi
 
-    # Private, loopback, link-local and CGNAT IPv4 addresses,
-    # plus common private and link-local IPv6 addresses.
-    if [[ "$addr" =~ ^10\. ]] ||
-       [[ "$addr" =~ ^192\.168\. ]] ||
-       [[ "$addr" =~ ^172\.(1[6-9]|2[0-9]|3[01])\. ]] ||
-       [[ "$addr" =~ ^127\. ]] ||
-       [[ "$addr" =~ ^169\.254\. ]] ||
-       [[ "$addr" =~ ^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\. ]] ||
-       [[ "$addr" == "::1" ]] ||
-       [[ "$addr" =~ ^(fc|fd|fe80:) ]]; then
-        echo "Private/VPN IP"
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "Install python3"
         return
     fi
+
+    # Validate the address and classify it using Python's ipaddress.
+    scope=$(python3 -c '
+import ipaddress, sys
+try:
+    ip = ipaddress.ip_address(sys.argv[1])
+    print("public" if ip.is_global else "private")
+except ValueError:
+    print("invalid")
+' "$addr" 2>/dev/null) || scope="invalid"
+
+    case "$scope" in
+        private)
+            echo "Private/VPN IP"
+            return
+            ;;
+        invalid)
+            echo "Invalid IP"
+            return
+            ;;
+        public)
+            ;;
+        *)
+            echo "Unavailable"
+            return
+            ;;
+    esac
 
     if ! command -v curl >/dev/null 2>&1 ||
        ! command -v jq >/dev/null 2>&1; then
@@ -355,16 +399,19 @@ get_location() {
         return
     fi
 
-    # HTTPS geolocation lookup requires outbound internet access.
-    result=$(curl -fsS --max-time 3 \
+    result=$(curl -fsS --connect-timeout 1 --max-time 2 \
         "https://ipwho.is/${addr}" 2>/dev/null) || {
         echo "Lookup unavailable"
         return
     }
 
     success=$(jq -r '.success // false' <<< "$result" 2>/dev/null)
-    city=$(jq -r '.city // empty' <<< "$result" 2>/dev/null)
-    country=$(jq -r '.country // empty' <<< "$result" 2>/dev/null)
+
+    # Strip terminal control characters from external response fields.
+    city=$(jq -r '.city // empty' <<< "$result" 2>/dev/null |
+        tr -d '[:cntrl:]')
+    country=$(jq -r '.country // empty' <<< "$result" 2>/dev/null |
+        tr -d '[:cntrl:]')
 
     if [[ "$success" == "true" ]]; then
         if [[ -n "$city" && -n "$country" ]]; then
@@ -383,30 +430,39 @@ LOCATION=$(get_location "$IP")
 PREV_LOCATION=$(get_location "$PREV_IP")
 
 # ----------------------------------------------------------
-# BOTTOM LEFT: Server information
+# BOTTOM LEFT: SERVER AND SECURITY INFORMATION
 # ----------------------------------------------------------
 
 BOTTOM_LEFT=(
-    "$(heading "${ITALIC}SERVER INFORMATION${RESET}")"
-    "$(field "Distribution:" "$OS")"
-    "$(field "Kernel:" "$KERNEL")"
-    "$(field "Failed Services:" "$SERVICES")"
+    "$(heading "SYSTEM HEALTH")"
+    "$(field "Memory:" "$MEMORY")"
+    "$(field "Load:" "$LOAD")"
+    "$(field "Root Disk:" "$DISK")"
+    "$(field "Root Inodes:" "$INODES")"
+    "$(heading "SECURITY STATUS")"
+    "$(field "Updates Pending:" "$PENDING_UPDATES")"
 )
+if [[ "$SHOW_FAIL2BAN" == true ]]; then
+    BOTTOM_LEFT+=(
+        "$(field "Failed SSH (1h):" "$FAILED_SSH_DISPLAY")"
+        "$(field "Fail2ban:" "$FAIL2BAN")"
+    )
+fi
 
 # ----------------------------------------------------------
-# BOTTOM RIGHT: Current and previous login information
+# BOTTOM RIGHT: LOGIN INFORMATION
 # ----------------------------------------------------------
 
 BOTTOM_RIGHT=(
-    "$(heading "${ITALIC}LOGIN INFORMATION"${RESET})"
-    "$(field "Current IP:" "${BOLD_BLUE}${IP}${RESET} | ${ITALIC}Location${RESET}: $LOCATION")"
+    "$(heading "LOGIN INFORMATION")"
+    "$(field "Current Login:" "$LOGIN_USER")"
+    "$(field "Current IP:" "${CYAN}${IP}${RESET} | Location: ${LOCATION}")"
     "$(field "Previous Login:" "${PREV_USER} | ${PREV_LOGIN}")"
-    "$(field "Previous IP:" "${BOLD_BLUE}${PREV_IP}${RESET} | ${ITALIC}Location${RESET}: $PREV_LOCATION")"
+    "$(field "Previous IP:" "${CYAN}${PREV_IP}${RESET} | Location: ${PREV_LOCATION}")"
 )
 
 # ----------------------------------------------------------
-# Render one row of two columns.
-# ANSI escape codes are excluded from width calculations.
+# RENDERING HELPERS
 # ----------------------------------------------------------
 
 strip_ansi() {
@@ -427,12 +483,12 @@ print_pair() {
 }
 
 # ----------------------------------------------------------
-# Draw the four-corner dashboard
+# DRAW THE FOUR-CORNER DASHBOARD
 # ----------------------------------------------------------
 
 printf '\n'
 
-# TOP: Server banner + system health.
+# TOP: server banner + system health.
 TOP_LINES=${#BANNER_PLAIN[@]}
 (( ${#TOP_RIGHT[@]} > TOP_LINES )) && TOP_LINES=${#TOP_RIGHT[@]}
 
@@ -446,7 +502,7 @@ done
 
 printf '\n'
 
-# BOTTOM: Server information + login information.
+# BOTTOM: server/security information + login information.
 BOTTOM_LINES=${#BOTTOM_LEFT[@]}
 (( ${#BOTTOM_RIGHT[@]} > BOTTOM_LINES )) &&
     BOTTOM_LINES=${#BOTTOM_RIGHT[@]}
@@ -454,7 +510,6 @@ BOTTOM_LINES=${#BOTTOM_LEFT[@]}
 for ((i = 0; i < BOTTOM_LINES; i++)); do
     left_render="${BOTTOM_LEFT[$i]:-}"
     right_render="${BOTTOM_RIGHT[$i]:-}"
-
     left_plain=$(printf '%s' "$left_render" | strip_ansi)
 
     print_pair "$left_plain" "$left_render" "$right_render"
