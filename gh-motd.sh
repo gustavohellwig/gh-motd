@@ -8,7 +8,8 @@ trap 'echo "ERROR: Installation failed on line $LINENO" >&2' ERR
 # Repository: gustavohellwig/gh-motd
 # ==========================================================
 
-MOTD_FILE="/etc/update-motd.d/00-0welcome"
+MOTD_DIR="/etc/update-motd.d"
+MOTD_FILE="$MOTD_DIR/00-0welcome"
 MOTD_URL="https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-0welcome"
 SSH_CONFIG="/etc/ssh/sshd_config"
 
@@ -35,11 +36,7 @@ echo
 echo "→ Installing dependencies"
 
 $SUDO apt-get update  >/dev/null 2>&1
-$SUDO apt-get install -y \
-    curl \
-    jq \
-    figlet \
-    lolcat >/dev/null 2>&1
+$SUDO apt-get install -y curl figlet lolcat >/dev/null 2>&1
 
 # ----------------------------------------------------------
 # 3. Download and install MOTD
@@ -62,6 +59,8 @@ if ! bash -n "$DOWNLOAD_TMP"; then
     echo "ERROR: Downloaded MOTD has invalid Bash syntax." >&2
     exit 1
 fi
+
+sudo find "$MOTD_DIR" -maxdepth 1 -type f -exec chmod a-x {} + >/dev/null 2>&1
 
 $SUDO install -o root -g root -m 755 "$DOWNLOAD_TMP" "$MOTD_FILE"
 rm -f "$DOWNLOAD_TMP"
