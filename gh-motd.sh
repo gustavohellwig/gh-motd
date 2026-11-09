@@ -60,7 +60,7 @@ if ! bash -n "$DOWNLOAD_TMP"; then
     exit 1
 fi
 
-sudo find "$MOTD_DIR" -maxdepth 1 -type f -exec chmod a-x {} + >/dev/null 2>&1
+sudo find "$MOTD_DIR" -maxdepth 1 -type f ! -name "80-keyhelp" -exec chmod a-x {} + >/dev/null 2>&1
 sudo find /etc/update-motd.d/ -maxdepth 1 -type l -delete >/dev/null 2>&1
 
 $SUDO install -o root -g root -m 755 "$DOWNLOAD_TMP" "$MOTD_FILE"
