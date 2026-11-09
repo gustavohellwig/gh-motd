@@ -1,42 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-trap 'echo "ERROR: Failed on line $LINENO"; exit 1' ERR
-
-#--------------------------------------------------
-# MOTD Configurations
-#--------------------------------------------------
-echo -e "\nMOTD Configurations"
-echo -e "\n→ Installing dependencies"
-sudo apt-get update >/dev/null 2>&1
-sudo apt-get install -y \
-    lolcat \
-    curl \
-    jq \
-    sysvbanner \
-    figlet \
-    wget >/dev/null 2>&1
-
-
-echo -e "\n→ Downloading MOTD config template"
-if exist, sudo rm /etc/update-motd.d/00-0welcome &>/dev/null
-sudo curl -fsSL -o /etc/update-motd.d/00-0welcome https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-0welcome
-sudo chmod -x /etc/update-motd.d/* &>/dev/null
-sudo chmod +x /etc/update-motd.d/00-0welcome &>/dev/null
-echo -e "\n→ MOTD Customization finished ←\n"
-echo -e "\n"
-
-
-
-
-
-
-
-
-
-#!/usr/bin/env bash
-set -Eeuo pipefail
-
 trap 'echo "ERROR: Installation failed on line $LINENO" >&2' ERR
 
 # ==========================================================
