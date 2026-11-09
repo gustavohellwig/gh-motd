@@ -16,19 +16,19 @@ sudo apt-get install -y \
     wget >/dev/null 2>&1
 #sudo apt-get install ansiweather
 echo -e "\n→ Downloading MOTD config template"
-#sudo rm /etc/update-motd.d/00-welcome &>/dev/null
-#sudo wget https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-welcome &>/dev/null
-sudo curl -fsSL -o /etc/update-motd.d/00-welcome https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-welcome
-#sudo mv 00-welcome /etc/update-motd.d/ &>/dev/null
+#sudo rm /etc/update-motd.d/00-0welcome &>/dev/null
+#sudo wget https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-0welcome &>/dev/null
+sudo curl -fsSL -o /etc/update-motd.d/00-welcome https://raw.githubusercontent.com/gustavohellwig/gh-motd/main/00-0welcome
+#sudo mv 00-0welcome /etc/update-motd.d/ &>/dev/null
 sudo chmod -x /etc/update-motd.d/* &>/dev/null
 # if [ -L /etc/update-motd.d/50-landscape-sysinfo ]; then
 #   sudo rm /etc/update-motd.d/50-landscape-sysinfo
 # elif [ -e /etc/update-motd.d/50-landscape-sysinfo ]; then
 #   sudo chmod 644 /etc/update-motd.d/50-landscape-sysinfo
 # fi
-# sudo chmod +x /etc/update-motd.d/00-welcome &>/dev/null
-#sudo find /etc/update-motd.d -maxdepth 1 -type f ! -name "00-welcome" -exec chmod -x {} \;
-echo "/bin/bash /etc/update-motd.d/00-welcome" > /etc/ssh/sshrc
+# sudo chmod +x /etc/update-motd.d/00-0welcome &>/dev/null
+#sudo find /etc/update-motd.d -maxdepth 1 -type f ! -name "00-0welcome" -exec chmod -x {} \;
+echo "/bin/bash /etc/update-motd.d/00-0welcome" > /etc/ssh/sshrc
 echo -e "\n→ MOTD Customization finished ←\n"
-#echo -e "PS: To update the weather location, change this file: \"/etc/update-motd.d/00-welcome\""
+#echo -e "PS: To update the weather location, change this file: \"/etc/update-motd.d/00-0welcome\""
 echo -e "\n"
