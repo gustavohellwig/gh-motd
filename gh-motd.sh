@@ -149,4 +149,4 @@ echo "→ Installation completed successfully."
 echo
 echo "Testing your new dashboard:"
 echo
-sudo bash $MOTD_FILE
+$SUDO bash $MOTD_FILE
