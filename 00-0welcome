@@ -30,7 +30,7 @@ fi
 [[ -n "$CPU_MODEL" ]] || CPU_MODEL="Unknown"
 
 # Detect terminal width.
-COLS=165
+COLS=170
 
 if [[ -t 1 ]]; then
     TERM_COLS=$(stty size </dev/tty 2>/dev/null | awk '{print $2}')
