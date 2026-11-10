@@ -439,17 +439,28 @@ BOTTOM_LEFT=(
     "$(field "Load:" "$LOAD")"
     "$(field "Root Disk:" "$DISK")"
     "$(field "Root Inodes:" "$INODES")"
-    "$(heading "SYSTEM STATUS")"
 )
-[ "$FAILEDSERVICES" -gt 0 ] && BOTTOM_LEFT+=("$(field "Failed Services:" "$FAILEDSERVICESNUMBER")")
-[ "$PENDING_UPDATES" -gt 0 ] && BOTTOM_LEFT+=("$(field "Updates Pending:" "$PENDING_UPDATES")")
+
+SYSTEM_STATUS=()
+
+[ "$FAILEDSERVICES" -gt 0 ] && SYSTEM_STATUS+=("$(field "Failed Services:" "$FAILEDSERVICESNUMBER")")
+
+[ "$PENDING_UPDATES" -gt 0 ] && SYSTEM_STATUS+=("$(field "Updates Pending:" "$PENDING_UPDATES")")
+
 if [[ "$SHOW_FAIL2BAN" == true ]]; then
     if [[ "$FAILED_SSH" =~ ^[0-9]+$ ]] && (( FAILED_SSH > 0 )); then
-        BOTTOM_LEFT+=("$(field "Failed SSH (1h):" "$FAILED_SSH_DISPLAY")")
+        SYSTEM_STATUS+=("$(field "Failed SSH (1h):" "$FAILED_SSH_DISPLAY")")
     fi
+
     if [[ "$FAIL2BAN" != *Inactive* ]]; then
-        BOTTOM_LEFT+=("$(field "Fail2ban:" "$FAIL2BAN")")
+        SYSTEM_STATUS+=("$(field "Fail2ban:" "$FAIL2BAN")")
     fi
+fi
+
+# Show heading only if at least one status entry exists
+if (( ${#SYSTEM_STATUS[@]} > 0 )); then
+    BOTTOM_LEFT+=("$(heading "SYSTEM STATUS")")
+    BOTTOM_LEFT+=("${SYSTEM_STATUS[@]}")
 fi
 
 # ----------------------------------------------------------
