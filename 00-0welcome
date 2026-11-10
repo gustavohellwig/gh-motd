@@ -354,7 +354,7 @@ fi
 
 get_location() {
     local addr="$1"
-    local result success city country scope
+    local result success city country country_code flag scope
 
     if [[ -z "$addr" || "$addr" == "Unknown" ]]; then
         echo "Unavailable"
@@ -412,12 +412,25 @@ except ValueError:
         tr -d '[:cntrl:]')
     country=$(jq -r '.country // empty' <<< "$result" 2>/dev/null |
         tr -d '[:cntrl:]')
+    country_code=$(jq -r '.country_code // empty' <<< "$result" 2>/dev/null |
+        tr -cd '[:alpha:]' | head -c 2 | tr '[:lower:]' '[:upper:]')
+
+    # Convert ISO country code to a flag emoji; country name remains visible
+    # on terminals/fonts that do not render flag emoji.
+    flag=""
+    if [[ "$country_code" =~ ^[A-Z]{2}$ ]]; then
+        flag=$(python3 -c '
+import sys
+code = sys.argv[1]
+print("".join(chr(0x1F1E6 + ord(c) - ord("A")) for c in code))
+' "$country_code" 2>/dev/null || true)
+    fi
 
     if [[ "$success" == "true" ]]; then
         if [[ -n "$city" && -n "$country" ]]; then
-            printf '%s, %s\n' "$city" "$country"
+            printf '%s, %s %s\n' "$city" "$country" "$flag"
         elif [[ -n "$country" ]]; then
-            printf '%s\n' "$country"
+            printf '%s %s\n' "$country" "$flag"
         else
             echo "Location unavailable"
         fi
@@ -497,36 +510,95 @@ print_pair() {
 }
 
 # ----------------------------------------------------------
-# DRAW THE FOUR-CORNER DASHBOARD
+# SESSION DETECTION: SSH HAS PRIORITY
+# ----------------------------------------------------------
+# Default to the full dashboard. Switch to the local layout only when the
+# current MOTD process can be tied to a local logind session, or has an
+# explicit local TTY from PAM. Do not infer the current session from all
+# sessions belonging to the same username (SSH and console may coexist).
+
+SHOW_LOCAL_LAYOUT=false
+CURRENT_SESSION_ID=""
+CURRENT_CGROUP=$(cat /proc/self/cgroup 2>/dev/null || true)
+
+# 1) Strong remote indicators, when PAM/SSH exports them to this script.
+if [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_CLIENT:-}" ||
+      -n "${SSH_TTY:-}" || -n "${PAM_RHOST:-}" ]]; then
+    SHOW_LOCAL_LAYOUT=false
+else
+    # 2) If systemd placed this process in a session scope, use that exact
+    # session ID. This avoids confusing another active session for this one.
+    if [[ "$CURRENT_CGROUP" =~ session-([0-9]+)\.scope ]]; then
+        CURRENT_SESSION_ID="${BASH_REMATCH[1]}"
+    fi
+
+    if [[ -n "$CURRENT_SESSION_ID" ]] && command -v loginctl >/dev/null 2>&1; then
+        SESSION_PROPERTIES=$(loginctl show-session "$CURRENT_SESSION_ID" \
+            -p Remote -p TTY -p Active 2>/dev/null || true)
+        SESSION_REMOTE=$(awk -F= '$1 == "Remote" {print $2}' <<< "$SESSION_PROPERTIES")
+        SESSION_TTY_VALUE=$(awk -F= '$1 == "TTY" {print $2}' <<< "$SESSION_PROPERTIES")
+        SESSION_ACTIVE=$(awk -F= '$1 == "Active" {print $2}' <<< "$SESSION_PROPERTIES")
+
+        if [[ "$SESSION_REMOTE" == "no" && "$SESSION_ACTIVE" == "yes" &&
+              "$SESSION_TTY_VALUE" =~ ^tty[0-9]+$ ]]; then
+            SHOW_LOCAL_LAYOUT=true
+        fi
+    fi
+
+    # 3) PAM_TTY is useful on systems that export it. Only accept a local VT.
+    if [[ "$SHOW_LOCAL_LAYOUT" == false &&
+          "${PAM_TTY:-}" =~ ^(/dev/)?tty[0-9]+$ ]]; then
+        SHOW_LOCAL_LAYOUT=true
+    fi
+
+    # 4) If we can see the actual controlling TTY, accept a local VT only.
+    # In pam_motd this often returns "not a tty", so this is only a fallback.
+    CURRENT_TTY=$(tty 2>/dev/null || true)
+    if [[ "$SHOW_LOCAL_LAYOUT" == false &&
+          "$CURRENT_TTY" =~ ^/dev/tty[0-9]+$ ]]; then
+        SHOW_LOCAL_LAYOUT=true
+    fi
+
+    # Anything ambiguous deliberately keeps the full dashboard, protecting SSH.
+fi
+
+# ----------------------------------------------------------
+# RENDER THE DASHBOARD
 # ----------------------------------------------------------
 
 printf '\n'
 
-# TOP: server banner + system health.
-TOP_LINES=${#BANNER_PLAIN[@]}
-(( ${#TOP_RIGHT[@]} > TOP_LINES )) && TOP_LINES=${#TOP_RIGHT[@]}
+if [[ "$SHOW_LOCAL_LAYOUT" == true ]]; then
+    # Local Hyper-V/physical console: show only the left-side sections.
+    for line in "${BANNER_COLOR[@]}"; do
+        printf '%s\n' "$line"
+    done
+    printf '\n'
+    for line in "${BOTTOM_LEFT[@]}"; do
+        printf '%s\n' "$line"
+    done
+else
+    # SSH or uncertain session: keep the full four-corner dashboard.
+    TOP_LINES=${#BANNER_PLAIN[@]}
+    (( ${#TOP_RIGHT[@]} > TOP_LINES )) && TOP_LINES=${#TOP_RIGHT[@]}
 
-for ((i = 0; i < TOP_LINES; i++)); do
-    left_plain="${BANNER_PLAIN[$i]:-}"
-    left_render="${BANNER_COLOR[$i]:-}"
-    right_render="${TOP_RIGHT[$i]:-}"
+    for ((i = 0; i < TOP_LINES; i++)); do
+        left_plain="${BANNER_PLAIN[$i]:-}"
+        left_render="${BANNER_COLOR[$i]:-}"
+        right_render="${TOP_RIGHT[$i]:-}"
+        print_pair "$left_plain" "$left_render" "$right_render"
+    done
 
-    print_pair "$left_plain" "$left_render" "$right_render"
-done
+    printf '\n'
 
-printf '\n'
-
-# BOTTOM: server/security information + login information.
-BOTTOM_LINES=${#BOTTOM_LEFT[@]}
-(( ${#BOTTOM_RIGHT[@]} > BOTTOM_LINES )) &&
-    BOTTOM_LINES=${#BOTTOM_RIGHT[@]}
-
-for ((i = 0; i < BOTTOM_LINES; i++)); do
-    left_render="${BOTTOM_LEFT[$i]:-}"
-    right_render="${BOTTOM_RIGHT[$i]:-}"
-    left_plain=$(printf '%s' "$left_render" | strip_ansi)
-
-    print_pair "$left_plain" "$left_render" "$right_render"
-done
+    BOTTOM_LINES=${#BOTTOM_LEFT[@]}
+    (( ${#BOTTOM_RIGHT[@]} > BOTTOM_LINES )) && BOTTOM_LINES=${#BOTTOM_RIGHT[@]}
+    for ((i = 0; i < BOTTOM_LINES; i++)); do
+        left_render="${BOTTOM_LEFT[$i]:-}"
+        right_render="${BOTTOM_RIGHT[$i]:-}"
+        left_plain=$(printf '%s' "$left_render" | strip_ansi)
+        print_pair "$left_plain" "$left_render" "$right_render"
+    done
+fi
 
 printf '\n'
