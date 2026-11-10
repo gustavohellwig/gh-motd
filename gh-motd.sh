@@ -124,26 +124,6 @@ if ! $SUDO systemctl reload ssh; then
     exit 1
 fi
 
-echo "SSH configuration validated and reloaded."
-
-# ----------------------------------------------------------
-# 5. Final validation
-# ----------------------------------------------------------
-
-echo
-echo "→ Validating installation"
-
-$SUDO bash -n "$MOTD_FILE"
-$SUDO /usr/sbin/sshd -t
-
-echo
-echo "Effective SSH PrintLastLog setting:"
-$SUDO /usr/sbin/sshd -T | grep -i '^printlastlog '
-
-echo
-echo "MOTD permissions:"
-$SUDO ls -l "$MOTD_FILE"
-
 echo
 echo "→ Installation completed successfully."
 echo
