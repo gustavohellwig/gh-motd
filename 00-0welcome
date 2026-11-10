@@ -154,7 +154,7 @@ get_server_ips() {
         {
             iface = $2
             sub(/@.*/, "", iface)
-            if (iface ~ /^(docker[0-9]*|br-[[:alnum:]]+|veth.*|virbr[0-9]*|cni[0-9]*|flannel.*|podman[0-9]*|lxcbr[0-9]*|kube.*)$/)
+            if (iface ~ /^(docker[0-9]*|br-[[:alnum:]]+|veth.*|virbr[0-9]*|cni[0-9]*|flannel.*|podman[0-9]*|lxcbr[0-9]*|kube.*|tailscale[0-9]*)$/)
                 next
             split($4, address, "/")
             if (address[1] != "" && address[1] !~ /^fe80:/)
