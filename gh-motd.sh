@@ -125,6 +125,7 @@ if ! $SUDO systemctl reload ssh; then
 fi
 
 # Disable Ubuntu MOTD news
+echo
 echo "→ Disabling Ubuntu MOTD news"
 
 if [[ -f /etc/default/motd-news ]]; then
