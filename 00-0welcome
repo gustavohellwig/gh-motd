@@ -13,6 +13,8 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # ----------------------------------------------------------
 
 HOST=$(hostname -s 2>/dev/null || hostname)
+HOST_UPPER=$(printf '%s' "$HOST" | tr '[:lower:]' '[:upper:]')
+
 OS=$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-Linux}")
 KERNEL=$(uname -r)
 UPTIME=$(uptime -p 2>/dev/null | sed 's/^up //' || echo "Unknown")
@@ -30,7 +32,7 @@ fi
 [[ -n "$CPU_MODEL" ]] || CPU_MODEL="Unknown"
 
 # Detect terminal width.
-COLS=170
+COLS=150
 
 if [[ -t 1 ]]; then
     TERM_COLS=$(stty size </dev/tty 2>/dev/null | awk '{print $2}')
@@ -107,15 +109,24 @@ heading() {
 BANNER_PLAIN=()
 BANNER_COLOR=()
 
+# Use a compact banner for longer hostnames to preserve dashboard space.
+# Hostnames with 9 or more characters use FIGlet's "big" font;
+# shorter hostnames retain the original "banner" font.
+if (( ${#HOST} >= 11 )); then
+    FIGLET_FONT="big"
+else
+    FIGLET_FONT="banner"
+fi
+
 if command -v figlet >/dev/null 2>&1; then
     mapfile -t BANNER_PLAIN < <(
-        figlet -w "$LEFT_WIDTH" -f banner "$HOST" 2>/dev/null |
+        figlet -w "$LEFT_WIDTH" -f "$FIGLET_FONT" "$HOST_UPPER" 2>/dev/null |
             sed '/^[[:space:]]*$/d'
     )
 
     if [[ -x /usr/games/lolcat ]]; then
         mapfile -t BANNER_COLOR < <(
-            figlet -w "$LEFT_WIDTH" -f banner "$HOST" 2>/dev/null |
+            figlet -w "$LEFT_WIDTH" -f "$FIGLET_FONT" "$HOST_UPPER" 2>/dev/null |
                 sed '/^[[:space:]]*$/d' |
                 /usr/games/lolcat -f 2>/dev/null
         )
@@ -574,9 +585,6 @@ if [[ "$SHOW_LOCAL_LAYOUT" == true ]]; then
         printf '%s\n' "$line"
     done
     printf '\n'
-    for line in "${BOTTOM_LEFT[@]}"; do
-        printf '%s\n' "$line"
-    done
 else
     # SSH or uncertain session: keep the full four-corner dashboard.
     TOP_LINES=${#BANNER_PLAIN[@]}
