@@ -36,7 +36,7 @@ echo
 echo "→ Installing dependencies"
 
 $SUDO apt-get update  >/dev/null 2>&1
-$SUDO apt-get install -y curl figlet lolcat sudo >/dev/null 2>&1
+$SUDO apt-get install -y curl figlet lolcat sudo jq >/dev/null 2>&1
 
 # ----------------------------------------------------------
 # 3. Download and install MOTD
