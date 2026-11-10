@@ -447,13 +447,10 @@ if [[ "$SHOW_FAIL2BAN" == true ]]; then
     if [[ "$FAILED_SSH" =~ ^[0-9]+$ ]] && (( FAILED_SSH > 0 )); then
         BOTTOM_LEFT+=("$(field "Failed SSH (1h):" "$FAILED_SSH_DISPLAY")")
     fi
-
-    if [[ "$FAIL2BAN_STATUS" != "Inactive" ]]; then
-        BOTTOM_LEFT+=("$(field "Fail2ban:" "$FAIL2BAN_STATUS")")
+    if [[ "$FAIL2BAN" != "Inactive" ]]; then
+        BOTTOM_LEFT+=("$(field "Fail2ban:" "$FAIL2BAN")")
     fi
 fi
-echo Showing FAIL2BAN_STATUS
-echo $FAIL2BAN_STATUS
 
 # ----------------------------------------------------------
 # BOTTOM RIGHT: LOGIN INFORMATION
