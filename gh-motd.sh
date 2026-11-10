@@ -132,7 +132,7 @@ if [[ -f /etc/default/motd-news ]]; then
     if grep -qE '^[[:space:]]*ENABLED=' /etc/default/motd-news; then
         $SUDO sed -i \
             's/^[[:space:]]*ENABLED=.*/ENABLED=0/' \
-            /etc/default/motd-news
+            /etc/default/motd-news >/dev/null 2>&1
     else
         echo "ENABLED=0" | $SUDO tee -a /etc/default/motd-news >/dev/null
     fi
@@ -140,7 +140,7 @@ fi
 
 # Stop and disable the timer if it exists.
 if $SUDO systemctl cat motd-news.timer >/dev/null 2>&1; then
-    $SUDO systemctl disable --now motd-news.timer
+    $SUDO systemctl disable --now motd-news.timer >/dev/null 2>&1
 fi
 
 # Mask the units only if they are not already masked.
@@ -148,14 +148,14 @@ for unit in motd-news.service motd-news.timer; do
     state=$(systemctl is-enabled "$unit" 2>/dev/null || true)
 
     if [[ "$state" != "masked" ]]; then
-        $SUDO systemctl mask "$unit"
+        $SUDO systemctl mask "$unit" >/dev/null 2>&1
     fi
 done
 
 # Clear stale failure state if the service is loaded.
 if $SUDO systemctl list-units --all --full motd-news.service |
     grep -q 'motd-news.service'; then
-    $SUDO systemctl reset-failed motd-news.service || true
+    $SUDO systemctl reset-failed motd-news.service >/dev/null 2>&1 || true
 fi
 
 echo
