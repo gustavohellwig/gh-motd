@@ -452,6 +452,8 @@ if [[ "$SHOW_FAIL2BAN" == true ]]; then
         BOTTOM_LEFT+=("$(field "Fail2ban:" "$FAIL2BAN_STATUS")")
     fi
 fi
+echo Showing FAIL2BAN_STATUS
+echo $FAIL2BAN_STATUS
 
 # ----------------------------------------------------------
 # BOTTOM RIGHT: LOGIN INFORMATION
