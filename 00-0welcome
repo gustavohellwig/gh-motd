@@ -1,3 +1,4 @@
+cat << 'EOF' > /etc/update-motd.d/00-0welcome
 #!/usr/bin/env bash
 
 # ==========================================================
@@ -14,7 +15,6 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 HOST=$(hostname -s 2>/dev/null || hostname)
 HOST_UPPER=$(printf '%s' "$HOST" | tr '[:lower:]' '[:upper:]')
-
 OS=$(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-Linux}")
 KERNEL=$(uname -r)
 UPTIME=$(uptime -p 2>/dev/null | sed 's/^up //' || echo "Unknown")
@@ -145,6 +145,103 @@ if (( ${#BANNER_COLOR[@]} != ${#BANNER_PLAIN[@]} )); then
 fi
 
 # ----------------------------------------------------------
+# SERVER NETWORK ADDRESSES (exclude Docker/container interfaces)
+# ----------------------------------------------------------
+
+get_server_ips() {
+    local family="$1"
+
+    ip -o "-$family" addr show scope global 2>/dev/null | awk '
+        {
+            iface = $2
+            sub(/@.*/, "", iface)
+            if (iface ~ /^(docker[0-9]*|br-[[:alnum:]]+|veth.*|virbr[0-9]*|cni[0-9]*|flannel.*|podman[0-9]*|lxcbr[0-9]*|kube.*)$/)
+                next
+            split($4, address, "/")
+            if (address[1] != "" && address[1] !~ /^fe80:/)
+                print address[1]
+        }
+    ' | awk '!seen[$0]++'
+}
+
+SERVER_IPV4=$(get_server_ips 4 | paste -sd ',' - | sed 's/,/, /g')
+
+# Select one IPv6 address: prefer the source address the kernel chooses for
+# outbound IPv6 traffic, rather than listing every global address assigned
+# to an interface. This avoids duplicate-looking entries on multi-address VPSs.
+# Do not automatically reject an address ending in ::; on some provider setups
+# the kernel may legitimately select it as the source address.
+get_preferred_server_ipv6() {
+    local source_ipv6="" iface="" candidate=""
+
+    # Ask the kernel which source address it would use for a public IPv6 target.
+    source_ipv6=$(ip -6 route get 2606:4700:4700::1111 2>/dev/null |
+        awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i+1); exit}}')
+
+    # If the kernel-selected source is not the subnet-prefix address ending in
+    # ::, use it when it is assigned globally on a non-container interface.
+    if [[ -n "$source_ipv6" && "$source_ipv6" != *"::" ]]; then
+        if get_server_ips 6 | grep -Fxq -- "$source_ipv6"; then
+            printf '%s\n' "$source_ipv6"
+            return 0
+        fi
+    fi
+
+    # If the kernel selects an address ending in ::, prefer another global
+    # address on the default-route interface (for example, an address ending
+    # in ::1). Keep the route-selected address only as a last resort.
+    iface=$(ip -6 route show default 2>/dev/null | awk 'NR == 1 {for (i = 1; i <= NF; i++) if ($i == "dev") {print $(i+1); exit}}')
+    if [[ -n "$iface" ]]; then
+        candidate=$(ip -o -6 addr show dev "$iface" scope global 2>/dev/null |
+            awk '{split($4, a, "/"); if (a[1] != "" && a[1] !~ /::$/) {print a[1]; exit}}')
+        if [[ -n "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    fi
+
+    # Last resort: retain the kernel-selected source if it is globally assigned.
+    if [[ -n "$source_ipv6" ]] && get_server_ips 6 | grep -Fxq -- "$source_ipv6"; then
+        printf '%s\n' "$source_ipv6"
+        return 0
+    fi
+
+    # Final fallback: first global IPv6 address on the default-route interface.
+    if [[ -n "$iface" ]]; then
+        ip -o -6 addr show dev "$iface" scope global 2>/dev/null |
+            awk '{split($4, a, "/"); if (a[1] != "") {print a[1]; exit}}'
+    fi
+}
+
+SERVER_IPV6=$(get_preferred_server_ipv6)
+[[ -n "$SERVER_IPV4" ]] || SERVER_IPV4="Unavailable"
+
+# The user requested private/internal IPv4 servers to show IPv4 only.
+# Classify the detected IPv4 addresses using RFC 1918 ranges.
+HAS_PRIVATE_IPV4=false
+if [[ "$SERVER_IPV4" != "Unavailable" ]]; then
+    while IFS= read -r addr; do
+        if python3 -c '
+import ipaddress, sys
+ip = ipaddress.ip_address(sys.argv[1])
+private = any(ip in ipaddress.ip_network(n) for n in (
+    "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"
+))
+sys.exit(0 if private else 1)
+' "$addr" 2>/dev/null; then
+            HAS_PRIVATE_IPV4=true
+            break
+        fi
+    done < <(get_server_ips 4)
+fi
+
+if [[ "$HAS_PRIVATE_IPV4" == true || -z "$SERVER_IPV6" ]]; then
+    SERVER_IP_DISPLAY="$SERVER_IPV4"
+else
+    SERVER_IP_DISPLAY="$SERVER_IPV4 | IPv6: $SERVER_IPV6"
+fi
+
+# ----------------------------------------------------------
 # TOP RIGHT: SYSTEM HEALTH
 # ----------------------------------------------------------
 
@@ -246,6 +343,7 @@ TOP_RIGHT=(
     "$(field "CPU Model:" "${CPU_MODEL} | ${CPU_CORES}")"
     "$(field "Memory:" "$MEMORYTOTAL")"
     "$(field "Uptime:" "$UPTIME")"
+    "$(field "Server IPs:" "$SERVER_IP_DISPLAY")"
 )
 
 # ----------------------------------------------------------
@@ -585,6 +683,9 @@ if [[ "$SHOW_LOCAL_LAYOUT" == true ]]; then
         printf '%s\n' "$line"
     done
     printf '\n'
+    for line in "${BOTTOM_LEFT[@]}"; do
+        printf '%s\n' "$line"
+    done
 else
     # SSH or uncertain session: keep the full four-corner dashboard.
     TOP_LINES=${#BANNER_PLAIN[@]}
@@ -610,3 +711,4 @@ else
 fi
 
 printf '\n'
+EOF
