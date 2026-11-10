@@ -18,12 +18,8 @@ KERNEL=$(uname -r)
 UPTIME=$(uptime -p 2>/dev/null | sed 's/^up //' || echo "Unknown")
 
 # CPU model: usually the virtual CPU model on a VM.
-CPU_MODEL=$(awk -F ': ' '
-    /^model name[[:space:]]*:/ { print $2; exit }
-    /^Hardware[[:space:]]*:/   { hardware=$2 }
-    END { if (NR && !found && hardware != "") print hardware }
-' /proc/cpuinfo 2>/dev/null | head -n 1)
-
+CPU_CORES=$(nproc)
+CPU_MODEL=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -n1 | sed 's/ (.*)//')
 # More reliable fallback for systems without "model name".
 if [[ -z "$CPU_MODEL" ]]; then
     CPU_MODEL=$(lscpu 2>/dev/null |
@@ -232,7 +228,7 @@ TOP_RIGHT=(
     "$(heading "SERVER INFORMATION")"
     "$(field "Distribution:" "$OS")"
     "$(field "Kernel:" "$KERNEL")"
-    "$(field "CPU Model:" "$CPU_MODEL")"
+    "$(field "CPU Model:" "$CPU_MODEL" | CPU_CORES)"
     "$(field "Uptime:" "$UPTIME")"
     "$(field "Failed Services:" "$SERVICES")"
 )
