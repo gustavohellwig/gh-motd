@@ -149,6 +149,9 @@ MEMORY=$(free -h 2>/dev/null | awk '
 ')
 [[ -n "$MEMORY" ]] || MEMORY="Unknown"
 
+MEMORYTOTAL=$(free -g | awk '/^Mem:/ {print $2"GB"}')
+
+
 # Root filesystem space.
 DISK=$(df -hP / 2>/dev/null | awk '
     NR == 2 {
@@ -168,13 +171,13 @@ INODES=$(df -iP / 2>/dev/null | awk '
 [[ -n "$INODES" ]] || INODES="Unknown"
 
 # Failed systemd services.
-FAILED=$(systemctl --failed --no-legend --plain 2>/dev/null |
+FAILEDSERVICES=$(systemctl --failed --no-legend --plain 2>/dev/null |
     awk 'NF {n++} END {print n+0}')
 
-if (( FAILED == 0 )); then
-    SERVICES="${GREEN}0${RESET}"
+if (( FAILEDSERVICES == 0 )); then
+    FAILEDSERVICESNUMBER="${GREEN}0${RESET}"
 else
-    SERVICES="${RED}${FAILED}${RESET}"
+    FAILEDSERVICESNUMBER="${RED}${FAILEDSERVICES}${RESET}"
 fi
 
 # ----------------------------------------------------------
@@ -230,6 +233,7 @@ TOP_RIGHT=(
     "$(field "Distribution:" "$OS")"
     "$(field "Kernel:" "$KERNEL")"
     "$(field "CPU Model:" "${CPU_MODEL} | ${CPU_CORES}")"
+    "$(field "Memory:" "$MEMORYTOTAL")"
     "$(field "Uptime:" "$UPTIME")"
 )
 
@@ -431,19 +435,22 @@ PREV_LOCATION=$(get_location "$PREV_IP")
 
 BOTTOM_LEFT=(
     "$(heading "SYSTEM HEALTH")"
-    "$(field "Memory:" "$MEMORY")"
+    "$(field "Memory in Use:" "$MEMORY")"
     "$(field "Load:" "$LOAD")"
     "$(field "Root Disk:" "$DISK")"
     "$(field "Root Inodes:" "$INODES")"
     "$(heading "SYSTEM STATUS")"
-    "$(field "Failed Services:" "$SERVICES")"
-    "$(field "Updates Pending:" "$PENDING_UPDATES")"
 )
+[ "$FAILEDSERVICES" -gt 0 ] && BOTTOM_LEFT+=("$(field "Failed Services:" "$FAILEDSERVICESNUMBER")")
+[ "$PENDING_UPDATES" -gt 0 ] && BOTTOM_LEFT+=("$(field "Updates Pending:" "$PENDING_UPDATES")")
 if [[ "$SHOW_FAIL2BAN" == true ]]; then
-    BOTTOM_LEFT+=(
-        "$(field "Failed SSH (1h):" "$FAILED_SSH_DISPLAY")"
-        "$(field "Fail2ban:" "$FAIL2BAN")"
-    )
+    if [[ "$FAILED_SSH" =~ ^[0-9]+$ ]] && (( FAILED_SSH > 0 )); then
+        BOTTOM_LEFT+=("$(field "Failed SSH (1h):" "$FAILED_SSH_DISPLAY")")
+    fi
+
+    if [[ "$FAIL2BAN_STATUS" != "Inactive" ]]; then
+        BOTTOM_LEFT+=("$(field "Fail2ban:" "$FAIL2BAN_STATUS")")
+    fi
 fi
 
 # ----------------------------------------------------------
