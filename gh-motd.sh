@@ -125,10 +125,9 @@ if ! $SUDO systemctl reload ssh; then
 fi
 
 # Disable Ubuntu MOTD news
-$SUDO sed -i 's/^[[:space:]]*ENABLED=.*/ENABLED=0/' /etc/default/motd-news >/dev/null 2>&1
-$SUDO systemctl disable --now motd-news.timer >/dev/null 2>&1
-$SUDO systemctl reset-failed motd-news.service >/dev/null 2>&1
-$SUDO systemctl mask motd-news.service motd-news.timer >/dev/null 2>&1
+$SUDO sed -i 's/^[[:space:]]*ENABLED=.*/ENABLED=0/' /etc/default/motd-news
+$SUDO systemctl disable --now motd-news.timer
+$SUDO systemctl mask motd-news.service motd-news.timer
 
 echo
 echo "→ Installation completed successfully."
